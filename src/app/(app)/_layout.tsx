@@ -6,6 +6,7 @@ export default function AppLayout() {
     <Stack>
       <Stack.Screen name="index" options={{ title: 'My Tasks' }} />
       <Stack.Screen name="stats" options={{ title: 'Compare data paths' }} />
+      <Stack.Screen name="health" options={{ title: 'Health' }} />
     </Stack>
   );
 }

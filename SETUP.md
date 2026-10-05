@@ -15,6 +15,8 @@ What's left needs **your** Supabase account. Expect ~15 minutes.
 | Task CRUD | ❌ | Steps 1–4 |
 | Stats via RPC (`get_task_stats`) | ❌ | Steps 1–4 |
 | Stats via Edge Function | ❌ | Steps 1–6 |
+| 24h task reminders (push) | ⚙️ built, needs setup | Steps 9–10 below + `PUSH_NOTIFICATIONS.md` |
+| Health screen (HealthKit) | ⚙️ built, needs an iOS development build | Step 11 below + `HEALTHKIT_GUIDE.md` |
 | Google Calendar | 🚧 not built (plan only) | `GOOGLE_CALENDAR_PLAN.md` |
 | AI assistant | 🚧 not built (plan only) | `AI_INTEGRATION_PLAN.md` |
 
@@ -146,6 +148,78 @@ Then try this:
 
 ---
 
+## Step 9 — Apply the new migrations and deploy the reminder function ⚠️ MANUAL
+
+Three migrations were added after your first `db push`: push reminders, the reminder schedule
+(pg_cron), and `health_daily_summary`. Apply them and deploy the new function:
+
+```bash
+npx supabase db push
+```
+
+```bash
+npx supabase functions deploy send-task-reminders --use-api
+```
+
+## Step 10 — Push notification setup ⚠️ MANUAL
+
+Full detail is in `PUSH_NOTIFICATIONS.md` §4. In short:
+
+1. Create an EAS project id (free Expo account). This writes `extra.eas.projectId` into `app.json`:
+
+```bash
+npx eas-cli@latest login
+```
+
+```bash
+npx eas-cli@latest init
+```
+
+2. Create a dedicated secret key: Dashboard → **Project Settings → API Keys → Secret keys →
+   New secret key** named `reminders-cron`.
+3. In **SQL Editor**, store it and the project URL in Vault (run this yourself; never commit
+   or share the key):
+
+```sql
+select vault.create_secret('https://tbgakdwbjhcbpcmuahzm.supabase.co', 'project_url');
+select vault.create_secret('PASTE_THE_sb_secret_KEY_HERE', 'task_reminders_secret_key');
+```
+
+4. Where push works:
+   - **Expo Go on a physical iPhone**: works after step 1.
+   - **iOS development build**: also needs a paid Apple Developer account and an APNs key
+     (`npx eas-cli@latest credentials`).
+   - **Android**: needs a development build plus FCM credentials. Expo Go on Android has no remote push.
+5. Test without waiting 24 hours: see `PUSH_NOTIFICATIONS.md` §4E (`olderThanMinutes: 1`).
+
+## Step 11 — HealthKit (Health screen) ⚠️ MANUAL
+
+The Health screen uses **our own Swift module** (`modules/health-kit`), so it does **not**
+work in Expo Go. Build the app natively:
+
+```bash
+npx expo run:ios --device "iPhone 17 Pro"
+```
+
+- This runs `prebuild`, which applies our config plugin (HealthKit entitlement and
+  `NSHealthShareUsageDescription`), then `pod install` (autolinks `HealthKitModule`), then builds.
+- Use an **iOS 26.x** simulator or device. Expo SDK 57 apps don't launch on iOS 27 (UIScene requirement).
+- **Simulator data:** open the simulator's **Health** app → Browse → Activity → Steps →
+  **Add Data**. Workouts usually stay empty on a simulator.
+- **Physical iPhone:** in Xcode, open `ios/supabasetaskslearning.xcworkspace` →
+  target → **Signing & Capabilities** → choose your Team. HealthKit should already be listed
+  as a capability (added by our plugin). If Xcode says your Personal Team doesn't support
+  HealthKit, you need a paid Apple Developer membership.
+- **Your shell's CocoaPods:** `pod` only works when `GEM_HOME` is set (your `~/.zshrc` does
+  this in interactive terminals), and it runs your Intel Ruby through Rosetta. If
+  `expo run:ios` fails at "pod install", run it from a normal Terminal window.
+
+Then: Tasks screen → **Health** → **Connect Apple Health** → allow the types → see steps,
+workouts and sleep. **Sync today's summary…** uploads only date, steps, workout minutes and
+sleep minutes, after a confirmation dialog.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |
@@ -158,6 +232,11 @@ Then try this:
 | Edge card: `Requested function was not found` | Step 6 not done |
 | Edge card: 401 / `INVALID_JWT` | Signed out, or the session expired. Sign out and back in |
 | `new row violates row-level security policy` | Working as designed: something tried to write a row for another user |
+| "Reminders unavailable: No EAS projectId" | Step 10.1 (`eas init`) |
+| `net._http_response` shows 401 for the reminder job | Vault secret missing or wrong (Step 10.3) |
+| Health screen: "Needs an iOS development build" | You're in Expo Go or on Android. Step 11 |
+| Health screen shows 0 steps / empty | No data yet, **or** access was declined. iOS hides which. Check Settings → Health → Data Access & Devices |
+| App crashes when tapping Connect Apple Health | The build is missing `NSHealthShareUsageDescription`. Re-run `npx expo prebuild` / `npx expo run:ios` so the plugin applies |
 
 ---
 

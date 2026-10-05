@@ -57,6 +57,69 @@ export type Database = {
         };
         Relationships: [];
       };
+      push_tokens: {
+        Row: {
+          token: string;
+          user_id: string;
+          platform: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          token: string;
+          user_id: string;
+          platform: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          token?: string;
+          user_id?: string;
+          platform?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      task_reminders: {
+        Row: { task_id: string; sent_at: string };
+        Insert: { task_id: string; sent_at?: string };
+        Update: { task_id?: string; sent_at?: string };
+        Relationships: [];
+      };
+      health_daily_summary: {
+        Row: {
+          id: string;
+          user_id: string;
+          date: string;
+          steps: number;
+          workout_minutes: number;
+          sleep_minutes: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          date: string;
+          steps?: number;
+          workout_minutes?: number;
+          sleep_minutes?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          date?: string;
+          steps?: number;
+          workout_minutes?: number;
+          sleep_minutes?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -69,6 +132,19 @@ export type Database = {
           total_count: number;
           completed_count: number;
           incomplete_count: number;
+        }[];
+      };
+      register_push_token: {
+        Args: { p_token: string; p_platform: string };
+        Returns: undefined;
+      };
+      claim_due_task_reminders: {
+        Args: { p_older_than?: string; p_limit?: number };
+        Returns: {
+          user_id: string;
+          task_id: string;
+          title: string;
+          created_at: string;
         }[];
       };
     };
@@ -85,5 +161,8 @@ export type Database = {
 export type Task = Database['public']['Tables']['tasks']['Row'];
 export type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
 export type TaskUpdate = Database['public']['Tables']['tasks']['Update'];
+export type HealthDailySummary = Database['public']['Tables']['health_daily_summary']['Row'];
+export type HealthDailySummaryInsert =
+  Database['public']['Tables']['health_daily_summary']['Insert'];
 export type TaskStats =
   Database['public']['Functions']['get_task_stats']['Returns'][number];

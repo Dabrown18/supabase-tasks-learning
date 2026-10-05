@@ -24,7 +24,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-notifications",
+      [
+        "./modules/health-kit/app.plugin.js",
+        {
+          "healthSharePermission": "Allow $(PRODUCT_NAME) to read your steps, workouts and sleep so it can show your daily summary. Nothing is uploaded unless you tap Sync."
+        }
+      ]
     ],
     "scheme": "supabasetasks",
     "experiments": {

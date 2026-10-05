@@ -12,6 +12,7 @@
  * token to every later request automatically.
  */
 import { supabase } from '@/lib/supabase';
+import { unregisterFromTaskReminders } from '@/services/notifications';
 
 export async function signUp(email: string, password: string) {
   const { data, error } = await supabase.auth.signUp({ email, password });
@@ -31,6 +32,9 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
+  // Remove this device's push token first, while we still have a session
+  // (RLS only lets us delete our own row). Don't block sign-out on failure.
+  await unregisterFromTaskReminders().catch(() => {});
   // Revokes the refresh token on the server and clears local storage.
   const { error } = await supabase.auth.signOut();
   if (error) throw error;

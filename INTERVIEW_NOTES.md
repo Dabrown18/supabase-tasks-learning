@@ -193,3 +193,95 @@ the database, where every access path is covered. The trade-off: you need strong
 skills, and complex domain logic needs a deliberate home (RPC or Edge Function). An Express
 layer still makes sense for heavy domain logic, long-running jobs, or strict API contracts.
 Supabase can coexist with it, since a Node service can verify Supabase JWTs.
+
+---
+
+## Push notifications (24h task reminders)
+
+**How would you send a reminder when a task has been open for 24 hours?**
+The server decides, not the phone. The app registers its Expo push token through a
+`security definer` RPC that only writes `auth.uid()`. A **pg_cron** job calls an Edge Function
+every 15 minutes, authenticated with a secret key stored in **Vault**. The function calls a
+Postgres function that atomically finds and marks overdue tasks (`FOR UPDATE SKIP LOCKED` plus
+a reminder log with `ON CONFLICT DO NOTHING`, so each reminder is sent at most once), then
+sends one notification per user through the Expo Push API and deletes tokens that come back
+`DeviceNotRegistered`. Local notifications can't see changes made on other devices.
+(`PUSH_NOTIFICATIONS.md`)
+
+**Why is the reminder function protected with a secret key rather than a user JWT?**
+It acts across all users, so it isn't a user endpoint. Only the cron job holds the key; the
+app's publishable key gets 401. Inside, it uses the service role deliberately and narrowly.
+
+---
+
+## Apple HealthKit (native module)
+
+**How would you integrate Apple HealthKit into a React Native application?**
+Write a small native module in Swift that owns an `HKHealthStore`, requests read access to only
+the needed types, and runs HealthKit queries: `HKStatisticsQueryDescriptor` for de-duplicated
+totals such as steps, `HKSampleQueryDescriptor` for workouts and sleep. Convert the results
+into plain records (ISO date strings, numbers) and expose a typed promise-based API to
+TypeScript. In Expo that's a local Expo module with a config plugin for the entitlement and
+`NSHealthShareUsageDescription`, running in a development build. (`HEALTHKIT_GUIDE.md`)
+
+**Would you use a React Native library or write it natively?**
+It depends on scope. For broad, commodity access a maintained library saves time. For a narrow,
+privacy-sensitive, product-critical integration I'd own it: a couple of hundred lines of Swift,
+an exact permission surface, no transitive dependencies in the health-data path, easy to audit,
+and no waiting on a maintainer when iOS changes. The cost is native maintenance and writing the
+Android side separately.
+
+**Why might you own the native HealthKit implementation?**
+Control (exactly which types are requested, read and returned), auditability for health-data
+compliance, upgrade independence, minimal binary and API surface, and access to new Apple APIs
+on day one.
+
+**How does React Native communicate with Swift?**
+Through a native module. In the New Architecture that means **JSI**: the JS runtime holds a
+host object whose methods are C++ functions that call into native code, with no JSON bridge.
+The Expo Modules API generates that layer from a Swift DSL (`Name`, `Function`,
+`AsyncFunction`, `Record`), converting types both ways. An `async throws` Swift closure becomes
+a JS Promise, and a thrown `Exception` becomes a rejected promise with a `code`.
+
+**How would this work with Expo?**
+Create a local module (`npx create-expo-module --local`), which goes in `modules/<name>` with
+an `expo-module.config.json`. Autolinking adds its podspec at `pod install`, and a config
+plugin modifies the generated Xcode project during `prebuild` (entitlements, Info.plist). You
+never hand-edit `ios/` (Continuous Native Generation). Build with `npx expo run:ios` or EAS Build.
+
+**Why won't this work in Expo Go?**
+Expo Go is a prebuilt binary with a fixed set of native modules and its own entitlements. It
+can't include our Swift or the HealthKit entitlement. On the JS side,
+`requireOptionalNativeModule` returns `null` there, and the UI explains that a development
+build is needed rather than faking data.
+
+**How do HealthKit permissions work?**
+Declare the purpose string in Info.plist, sign with the HealthKit entitlement, and request
+per-type read/write access at runtime. The sheet appears once; after that, users change access
+in Settings → Health. Crucially, apps can't tell whether **read** access was denied, because
+that would itself leak information. Denied reads look like "no data", so the UI and analytics
+must not assume "no data" means "no permission". `statusForAuthorizationRequest` only says
+whether the sheet would show.
+
+**How would you securely synchronize HealthKit information with a backend?**
+Only with explicit, informed consent: show exactly what is sent, and make it opt-in or
+user-initiated. Send minimal **aggregates**, not raw samples. Use authenticated requests (JWT),
+enforce per-user RLS, and make the write idempotent (unique `(user_id, date)` plus upsert).
+Validate ranges with check constraints, encrypt in transit and at rest, keep it out of logs,
+analytics and push payloads, support deletion (cascade on account deletion), set a retention
+policy, and keep production health data out of dev environments.
+
+**What privacy concerns exist when handling health information?**
+It's special-category data (GDPR, potentially HIPAA). Risks include inference (pregnancy,
+illness, location from workout routes), leakage through logs, crash reports, analytics, lock
+screen notifications or backups, over-collection, and secondary use. Apple forbids advertising
+use and requires purpose strings and justified types. Mitigations: data minimization, purpose
+limitation, least-privilege access, user control and deletion, and transparency.
+
+**How would you design the equivalent functionality on Android?**
+Use **Health Connect** through a Kotlin native module, added to the same Expo module as an
+`android/` folder. Declare the health permissions in the manifest and request them with Health
+Connect's permission contract. Read with `aggregate` (e.g. `StepsRecord.COUNT_TOTAL`) and
+`readRecords` (`ExerciseSessionRecord`, `SleepSessionRecord`), and handle Health Connect not
+being installed on older Android versions. Complete Google Play's health permissions
+declaration. Keep the same TypeScript interface so the screen stays platform-agnostic.
