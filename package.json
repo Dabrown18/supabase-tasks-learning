@@ -1,0 +1,40 @@
+{
+  "name": "supabase-tasks-learning",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.109.0",
+    "expo": "~57.0.26",
+    "expo-constants": "~57.0.20",
+    "expo-linking": "~57.0.11",
+    "expo-router": "~57.0.24",
+    "expo-sqlite": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "lint": "expo lint",
+    "supabase": "npx --yes supabase@2",
+    "db:link": "npx --yes supabase@2 link",
+    "db:push": "npx --yes supabase@2 db push",
+    "db:types": "npx --yes supabase@2 gen types typescript --linked --schema public > src/types/database.ts",
+    "functions:deploy": "npx --yes supabase@2 functions deploy get-task-summary",
+    "functions:check": "cd supabase/functions/get-task-summary && npx --yes deno check index.ts"
+  },
+  "private": true
+}
